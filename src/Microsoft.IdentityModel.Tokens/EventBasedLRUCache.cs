@@ -128,6 +128,8 @@ namespace Microsoft.IdentityModel.Tokens
 
         #endregion
 
+        private bool _useLRU = false;
+
         /// <summary>
         /// Constructor.
         /// </summary>
@@ -149,6 +151,7 @@ namespace Microsoft.IdentityModel.Tokens
             _removeExpiredValuesIntervalInSeconds = 1000 * removeExpiredValuesIntervalInSeconds;
             _removeExpiredValues = removeExpiredValues;
             _eventQueueTaskStopTime = DateTime.UtcNow;
+            //_useLRU = useLRU;
 
             if (_removeExpiredValues)
                 _timer = new Timer(RemoveExpiredValuesPeriodically, null, _removeExpiredValuesIntervalInSeconds, _removeExpiredValuesIntervalInSeconds);
@@ -287,7 +290,26 @@ namespace Microsoft.IdentityModel.Tokens
 
         public void SetValue(TKey key, TValue value)
         {
-            SetValue(key, value, DateTime.MaxValue);
+            if (_map.TryGetValue(key, out LRUCacheItem<TKey, TValue> cacheItem))
+            {
+                cacheItem.Value = value;
+            }
+            else
+            {
+                // if cache is at _maxCapacityPercentage, trim it by _compactionPercentage
+                if ((double)_map.Count / _capacity >= _maxCapacityPercentage)
+                {
+                    _eventQueue.Enqueue(() =>
+                    {
+                        RemoveLRUs();
+                    });
+                }
+                // add the new node
+                _map[key] = new LRUCacheItem<TKey, TValue>(key, value);
+
+                // start the event queue task if it is not running
+                StartEventQueueTaskIfNotRunning();
+            }
         }
 
         public bool SetValue(TKey key, TValue value, DateTime expirationTime)
@@ -307,11 +329,14 @@ namespace Microsoft.IdentityModel.Tokens
             {
                 cacheItem.Value = value;
                 cacheItem.ExpirationTime = expirationTime;
-                AddActionToEventQueue(() =>
+                if (_useLRU)
                 {
-                    _doubleLinkedList.Remove(cacheItem);
-                    _doubleLinkedList.AddFirst(cacheItem);
-                });
+                    AddActionToEventQueue(() =>
+                    {
+                        _doubleLinkedList.Remove(cacheItem);
+                        _doubleLinkedList.AddFirst(cacheItem);
+                    });
+                }
             }
             else
             {
@@ -323,15 +348,19 @@ namespace Microsoft.IdentityModel.Tokens
                         RemoveLRUs();
                     });
                 }
-                // add the new node
+
                 var existingCacheItem = new LRUCacheItem<TKey, TValue>(key, value, expirationTime);
-                AddActionToEventQueue(() =>
+                // add the new node
+                if (_useLRU)
                 {
+
+                    AddActionToEventQueue(() =>
+                    {
                     // Add a remove operation in case two threads are trying to add the same value. Only the second remove will succeed in this case.
                     _doubleLinkedList.Remove(existingCacheItem);
-                    _doubleLinkedList.AddFirst(existingCacheItem);
-                });
-
+                        _doubleLinkedList.AddFirst(existingCacheItem);
+                    });
+                }
                 _map[key] = existingCacheItem;
             }
 
@@ -381,22 +410,23 @@ namespace Microsoft.IdentityModel.Tokens
             if (key == null)
                 throw LogHelper.LogArgumentNullException(nameof(key));
 
-            if (!_map.ContainsKey(key))
+            if (_map.TryGetValue(key, out var cacheItem))
             {
-                value = default;
-                return false;
+                if (_useLRU)
+                { 
+                    AddActionToEventQueue(() =>
+                    {
+                        _doubleLinkedList.Remove(cacheItem);
+                        _doubleLinkedList.AddFirst(cacheItem);
+                    });
+                }
+
+                value = cacheItem.Value;
+                return true;
             }
 
-            // make sure node hasn't been removed by a different thread
-            if (_map.TryGetValue(key, out var cacheItem))
-                AddActionToEventQueue(() =>
-                {
-                    _doubleLinkedList.Remove(cacheItem);
-                    _doubleLinkedList.AddFirst(cacheItem);
-                });
-
-            value = cacheItem != null ? cacheItem.Value : default;
-            return cacheItem != null;
+            value = default;
+            return false;
         }
 
         /// Removes a particular key from the cache.

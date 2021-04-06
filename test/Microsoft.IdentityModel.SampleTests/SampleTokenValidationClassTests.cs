@@ -73,7 +73,7 @@ namespace Microsoft.IdentityModel.SampleTests
             TestWithGeneratedToken(
                 () => "InvalidToken",
                 typeof(ArgumentException),
-                "IDX14111");
+                "IDX14100");
         }
 
         /// <summary>
@@ -84,8 +84,8 @@ namespace Microsoft.IdentityModel.SampleTests
         {
             TestWithGeneratedToken(
                 testTokenCreator.CreateTokenWithNoSignature,
-                typeof(ArgumentException),
-                "IDX14111");
+                typeof(SecurityTokenInvalidSignatureException),
+                "IDX10504");
         }
 
         /// <summary>
@@ -96,8 +96,8 @@ namespace Microsoft.IdentityModel.SampleTests
         {
             TestWithGeneratedToken(
                 testTokenCreator.CreateTokenWithInvalidSignature,
-                typeof(ArgumentException),
-                "IDX14111");
+                typeof(SecurityTokenInvalidSignatureException),
+                "IDX10511:");
         }
 
         /// <summary>
