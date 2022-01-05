@@ -47,7 +47,6 @@ namespace Microsoft.IdentityModel.JsonWebTokens
     /// </summary>
     public class JsonWebToken : SecurityToken, IClaimProvider
     {
-        internal bool HasSignature { get; set; }
         private char[] _hChars;
         private byte[] _messageBytes;
         private char[] _pChars;
@@ -457,7 +456,12 @@ namespace Microsoft.IdentityModel.JsonWebTokens
         /// <summary>
         /// 
         /// </summary>
-        public bool IsEncrypted { get; set; }
+        public bool IsEncrypted { get => CipherTextBytes != null; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool IsSigned { get; internal set; }
 
         /// <summary>
         /// Gets the Initialization Vector used when encrypting the plaintext.
@@ -733,24 +737,14 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             EncodedToken = encodedJson;
             if (dots.Count == JwtConstants.JwsSegmentCount - 1)
             {
-                if (dots[1] + 1 == encodedJson.Length)
-                {
-                    HasSignature = false;
-                    // TODO - have fixed value for this.
-                    _signatureBytes = Base64UrlEncoder.UnsafeDecode(string.Empty.ToCharArray());
-                }
-                else
-                {
-                    HasSignature = true;
-                    _sChars = encodedJson.ToCharArray(dots[1] + 1, encodedJson.Length - dots[1] - 1);
-                    _signatureBytes = Base64UrlEncoder.UnsafeDecode(_sChars);
-                }
-
+                IsSigned = !(dots[1] + 1 == encodedJson.Length);
                 _hChars = encodedJson.ToCharArray(0, dots[0]);
                 _pChars = encodedJson.ToCharArray(dots[0] + 1, dots[1] - dots[0] - 1);
                 _messageBytes = Encoding.UTF8.GetBytes(encodedJson.ToCharArray(0, dots[1]));
                 try
                 {
+                    _sChars = IsSigned ? encodedJson.ToCharArray(dots[1] + 1, encodedJson.Length - dots[1] - 1) : string.Empty.ToCharArray();
+                    _signatureBytes = Base64UrlEncoder.UnsafeDecode(_sChars);
                     Header = new JsonClaimSet(Base64UrlEncoder.UnsafeDecode(_hChars));
                 }
                 catch(Exception ex)
@@ -769,23 +763,62 @@ namespace Microsoft.IdentityModel.JsonWebTokens
             }
             else if (dots.Count == JwtConstants.JweSegmentCount - 1)
             {
-                char[] header = encodedJson.ToCharArray(0, dots[0]);
-                HeaderAsciiBytes = Encoding.ASCII.GetBytes(header);
-                EncryptedKeyBytes = Base64UrlEncoder.UnsafeDecode(encodedJson.ToCharArray(dots[0] + 1, dots[1] - dots[0] - 1));
-                InitializationVectorBytes = Base64UrlEncoder.UnsafeDecode(encodedJson.ToCharArray(dots[1] + 1, dots[2] - dots[1] - 1));
-                CipherTextBytes = Base64UrlEncoder.UnsafeDecode(encodedJson.ToCharArray(dots[2] + 1, dots[3] - dots[2] - 1));
-                if (CipherTextBytes.Length == 0)
-                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogMessages.IDX14306));
+                _hChars = encodedJson.ToCharArray(0, dots[0]);
+                if (_hChars.Length == 0)
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14307, encodedJson)));
 
-                AuthenticationTagBytes = Base64UrlEncoder.UnsafeDecode(encodedJson.ToCharArray(dots[3] + 1, encodedJson.Length - dots[3] - 1));
+                HeaderAsciiBytes = Encoding.ASCII.GetBytes(_hChars);
                 try
                 {
-                    // TODO - should this be lazy?
-                    Header = new JsonClaimSet(Base64UrlEncoder.UnsafeDecode(header));
+                    Header = new JsonClaimSet(Base64UrlEncoder.UnsafeDecode(_hChars));
                 }
                 catch (Exception ex)
                 {
                     throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14102, encodedJson.Substring(0, dots[0]), encodedJson), ex));
+                }
+
+                // dir does not have any key bytes
+                char[] encryptedKeyBytes = encodedJson.ToCharArray(dots[0] + 1, dots[1] - dots[0] - 1);
+                if (encryptedKeyBytes.Length != 0)
+                    EncryptedKeyBytes = Base64UrlEncoder.UnsafeDecode(encryptedKeyBytes);
+
+                char[] ivChars = encodedJson.ToCharArray(dots[1] + 1, dots[2] - dots[1] - 1);
+                if (ivChars.Length == 0)
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14308, encodedJson)));
+
+                try
+                {
+                    InitializationVectorBytes = Base64UrlEncoder.UnsafeDecode(ivChars);
+                }
+                catch (Exception ex)
+                {
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14309, encodedJson, encodedJson), ex));
+                }
+
+                char[] authTagChars = encodedJson.ToCharArray(dots[3] + 1, encodedJson.Length - dots[3] - 1);
+                if (authTagChars.Length == 0)
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14310, encodedJson)));
+
+                try
+                {
+                    AuthenticationTagBytes = Base64UrlEncoder.UnsafeDecode(authTagChars);
+                }
+                catch (Exception ex)
+                {
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14311, encodedJson, encodedJson), ex));
+                }
+
+                char[] cipherTextBytes = encodedJson.ToCharArray(dots[2] + 1, dots[3] - dots[2] - 1);
+                if (cipherTextBytes.Length == 0)
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14306, encodedJson)));
+
+                try
+                {
+                    CipherTextBytes = Base64UrlEncoder.UnsafeDecode(encodedJson.ToCharArray(dots[2] + 1, dots[3] - dots[2] - 1));
+                }
+                catch (Exception ex)
+                {
+                    throw LogHelper.LogExceptionMessage(new ArgumentException(LogHelper.FormatInvariant(LogMessages.IDX14312, encodedJson, encodedJson), ex));
                 }
             }
             else

@@ -468,7 +468,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
                 JwtTestData.InvalidNumberOfSegmentsData("IDX14100:", theoryData);
                 JwtTestData.ValidEncodedSegmentsData(theoryData);
 
-                theoryData.Add(new JwtTheoryData("JWS_InvalidHeader")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.InvalidHeader))
                 {
                     Token = EncodedJwts.InvalidHeader,
 #if NET452
@@ -478,7 +478,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 #endif
                 });
 
-                theoryData.Add(new JwtTheoryData("JWS_InvalidPayload")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.InvalidPayload))
                 {
                     Token = EncodedJwts.InvalidPayload,
 #if NET452
@@ -488,7 +488,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 #endif
                 });
 
-                theoryData.Add(new JwtTheoryData("JWS_EmptyHeader")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWSEmptyHeader))
                 {
                     Token = EncodedJwts.JWSEmptyHeader,
 #if NET452
@@ -498,7 +498,7 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 #endif
                 });
 
-                theoryData.Add(new JwtTheoryData("JWS_EmptyPayload")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWSEmptyPayload))
                 {
                     Token = EncodedJwts.JWSEmptyPayload,
 #if NET452
@@ -508,34 +508,32 @@ namespace Microsoft.IdentityModel.JsonWebTokens.Tests
 #endif
                 });
 
-                theoryData.Add(new JwtTheoryData("JWE_EmptyHeader")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWEEmptyHeader))
                 {
                     Token = EncodedJwts.JWEEmptyHeader,
-#if NET452
-                    ExpectedException = new ExpectedException(typeof(ArgumentException), "IDX14102:", typeof(JsonReaderException), false ),
-#else
-                    ExpectedException = new ExpectedException(typeof(ArgumentException), "IDX14102:", typeof(JsonReaderException), true),
-#endif
+                    ExpectedException = new ExpectedException(typeof(ArgumentException), "IDX14307:"),
                 });
 
-                theoryData.Add(new JwtTheoryData("JWE_EmptyEncryptedKey")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWEEmptyEncryptedKey))
                 {
                     Token = EncodedJwts.JWEEmptyEncryptedKey,
                 });
 
-                theoryData.Add(new JwtTheoryData("JWE_EmptyIV")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWEEmptyIV))
                 {
+                    ExpectedException = new ExpectedException(typeof(ArgumentException), "IDX14308:"),
                     Token = EncodedJwts.JWEEmptyIV,
                 });
 
-                theoryData.Add(new JwtTheoryData("JWE_EmptyCiphertext")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWEEmptyCiphertext))
                 {
                     Token = EncodedJwts.JWEEmptyCiphertext,
                     ExpectedException = ExpectedException.ArgumentException(substringExpected: "IDX14306:")
                 });
 
-                theoryData.Add(new JwtTheoryData("JWE_JWEEmptyAuthenticationTag")
+                theoryData.Add(new JwtTheoryData(nameof(EncodedJwts.JWEEmptyAuthenticationTag))
                 {
+                    ExpectedException = ExpectedException.ArgumentException(substringExpected: "IDX14310:"),
                     Token = EncodedJwts.JWEEmptyAuthenticationTag,
                 });
 
